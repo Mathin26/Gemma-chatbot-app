@@ -125,26 +125,12 @@ Future<void> _stopListening() async {
     _isListening = false;
   });
 }
-    //----------------------------------------
-    // Connect speech_to_text here later
-    //----------------------------------------
 
-    await Future.delayed(
-      const Duration(seconds: 3),
-    );
-
-    setState(() {
-      _messageController.text =
-          "Hello Gemma";
-      _isListening = false;
-    });
-  }
-
-  Future<void> _speak(String text) async {
-    //----------------------------------------
-    // Connect FlutterTTS here later
-    //----------------------------------------
-  }
+Future<void> _speak(String text) async {
+  //----------------------------------------
+  // TTS code will go here later
+  //----------------------------------------
+}
 
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback(
@@ -232,7 +218,9 @@ Future<void> _stopListening() async {
 
             const SizedBox(width: 8),
 
-            IconButton(
+            const SizedBox(width: 8),
+
+IconButton(
   onPressed: () async {
     if (_isListening) {
       await _stopListening();
@@ -240,6 +228,20 @@ Future<void> _stopListening() async {
       await _startListening();
     }
   },
+  icon: Icon(
+    _isListening
+        ? Icons.mic
+        : Icons.mic_none,
+  ),
+),
+
+IconButton(
+  onPressed:
+      _isGenerating ? null : _sendMessage,
+  icon: const Icon(
+    Icons.send,
+  ),
+),
   icon: Icon(
     _isListening
         ? Icons.mic
