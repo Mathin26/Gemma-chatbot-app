@@ -216,7 +216,7 @@ Future<void> _speak(String text) async {
               ),
             ),
 
-            const SizedBox(width: 8),
+            
 
             const SizedBox(width: 8),
 
