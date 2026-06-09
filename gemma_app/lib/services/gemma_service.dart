@@ -1,5 +1,4 @@
 import 'package:flutter_gemma/flutter_gemma.dart';
-
 class GemmaService {
   GemmaService._();
 

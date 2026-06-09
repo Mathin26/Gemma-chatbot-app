@@ -187,83 +187,58 @@ Future<void> _speak(String text) async {
   }
 
   Widget _buildInputArea() {
-    return SafeArea(
-      child: Container(
-        padding: const EdgeInsets.symmetric(
-          horizontal: 12,
-          vertical: 8,
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: TextField(
-                controller: _messageController,
-                textCapitalization:
-                    TextCapitalization.sentences,
-                minLines: 1,
-                maxLines: 5,
-                decoration: InputDecoration(
-                  hintText:
-                      "Message Gemma...",
-                  border:
-                      OutlineInputBorder(
-                    borderRadius:
-                        BorderRadius.circular(
-                      25,
-                    ),
-                  ),
+  return SafeArea(
+    child: Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 12,
+        vertical: 8,
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _messageController,
+              textCapitalization:
+                  TextCapitalization.sentences,
+              minLines: 1,
+              maxLines: 5,
+              decoration: InputDecoration(
+                hintText: "Message Gemma...",
+                border: OutlineInputBorder(
+                  borderRadius:
+                      BorderRadius.circular(25),
                 ),
               ),
             ),
+          ),
 
-            
+          const SizedBox(width: 8),
 
-            const SizedBox(width: 8),
-
-IconButton(
-  onPressed: () async {
-    if (_isListening) {
-      await _stopListening();
-    } else {
-      await _startListening();
-    }
-  },
-  icon: Icon(
-    _isListening
-        ? Icons.mic
-        : Icons.mic_none,
-  ),
-),
-
-IconButton(
-  onPressed:
-      _isGenerating ? null : _sendMessage,
-  icon: const Icon(
-    Icons.send,
-  ),
-),
-  icon: Icon(
-    _isListening
-        ? Icons.mic
-        : Icons.mic_none,
-  ),
-),
-
-IconButton(
-  onPressed:
-      _isGenerating ? null : _sendMessage,
-  icon: const Icon(
-    Icons.send,
-  ),
-),
-              ),
+          IconButton(
+            onPressed: () async {
+              if (_isListening) {
+                await _stopListening();
+              } else {
+                await _startListening();
+              }
+            },
+            icon: Icon(
+              _isListening
+                  ? Icons.mic
+                  : Icons.mic_none,
             ),
-          ],
-        ),
-      ),
-    );
-  }
+          ),
 
+          IconButton(
+            onPressed:
+                _isGenerating ? null : _sendMessage,
+            icon: const Icon(Icons.send),
+          ),
+        ],
+      ),
+    ),
+  );
+}
   Widget _buildModelStatus() {
     return Container(
       padding: const EdgeInsets.all(10),
