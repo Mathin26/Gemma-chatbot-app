@@ -96,13 +96,13 @@ class SpeechService {
     return await initialize();
   }
 
-  List<LocaleName> getLocales() {
-    return _speech.locales();
-  }
+  Future<List<LocaleName>> getLocales() async {
+  return await _speech.locales();
+}
 
-  LocaleName? get systemLocale {
-    return _speech.systemLocale();
-  }
+Future<LocaleName?> getSystemLocale() async {
+  return await _speech.systemLocale();
+}
 
   void dispose() {
     _speech.cancel();
