@@ -18,11 +18,6 @@ class TtsService {
     _initialized = true;
   }
 
-  Future<void> setLanguage(String languageCode) async {
-    await initialize();
-    await _tts.setLanguage(languageCode);
-  }
-
   Future<void> speak(String text) async {
     if (text.trim().isEmpty) return;
     await initialize();
