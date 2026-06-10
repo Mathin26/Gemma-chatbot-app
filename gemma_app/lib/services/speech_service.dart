@@ -1,16 +1,15 @@
+import 'package:speech_to_text/speech_recognition_error.dart';
+import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 
 class SpeechService {
   SpeechService._();
 
-  static final SpeechService instance =
-      SpeechService._();
+  static final SpeechService instance = SpeechService._();
 
-  final SpeechToText _speech =
-      SpeechToText();
+  final SpeechToText _speech = SpeechToText();
 
   bool _isInitialized = false;
-
   bool _isListening = false;
 
   bool get isListening => _isListening;
@@ -18,95 +17,71 @@ class SpeechService {
   Future<bool> initialize() async {
     if (_isInitialized) return true;
 
-    try {
-      _isInitialized =
-          await _speech.initialize(
-        onStatus: (status) {
-          print("Speech Status: $status");
-        },
-        onError: (error) {
-          print("Speech Error: $error");
-        },
-      );
+    _isInitialized = await _speech.initialize(
+      onStatus: (status) {
+        if (status == 'done' || status == 'notListening') {
+          _isListening = false;
+        }
+      },
+      onError: (SpeechRecognitionError error) {
+        _isListening = false;
+      },
+    );
 
-      return _isInitialized;
-    } catch (e) {
-      print(
-        "Speech initialization failed: $e",
-      );
-
-      return false;
-    }
+    return _isInitialized;
   }
 
-  Future<void> startListening({
-    required Function(String text)
-        onResult,
+  Future<bool> startListening({
+    required void Function(String text) onResult,
+    String? localeId,
   }) async {
-    try {
-      final available =
-          await initialize();
+    final available = await initialize();
+    if (!available) return false;
 
-      if (!available) return;
-
-      _isListening = true;
-
-      await _speech.listen(
-        listenMode:
-            ListenMode.confirmation,
-        partialResults: true,
-        onResult: (result) {
-          onResult(
-            result.recognizedWords,
-          );
-        },
-      );
-    } catch (e) {
-      print(
-        "Start listening error: $e",
-      );
+    if (_isListening) {
+      await stopListening();
     }
+
+    _isListening = true;
+
+    await _speech.listen(
+      localeId: localeId,
+      partialResults: true,
+      listenMode: ListenMode.dictation,
+      onResult: (SpeechRecognitionResult result) {
+        onResult(result.recognizedWords);
+      },
+    );
+
+    return true;
   }
 
   Future<void> stopListening() async {
-    try {
-      await _speech.stop();
-
-      _isListening = false;
-    } catch (e) {
-      print(
-        "Stop listening error: $e",
-      );
-    }
+    await _speech.stop();
+    _isListening = false;
   }
 
   Future<void> cancelListening() async {
-    try {
-      await _speech.cancel();
-
-      _isListening = false;
-    } catch (e) {
-      print(
-        "Cancel listening error: $e",
-      );
-    }
-  }
-
-  Future<bool> hasPermission() async {
-    return await initialize();
+    await _speech.cancel();
+    _isListening = false;
   }
 
   Future<List<LocaleName>> getLocales() async {
-  return await _speech.locales();
-}
+    await initialize();
+    return _speech.locales();
+  }
 
-Future<LocaleName?> getSystemLocale() async {
-  return await _speech.systemLocale();
-}
+  Future<LocaleName?> getSystemLocale() async {
+    await initialize();
+    return _speech.systemLocale();
+  }
+
+  Future<bool> hasPermission() async {
+    return initialize();
+  }
 
   void dispose() {
     _speech.cancel();
-
     _isListening = false;
   }
 }
