@@ -1,6 +1,7 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
+import '../main.dart';
 import '../services/gemma_service.dart';
 import '../services/speech_service.dart';
 import '../services/storage_service.dart';
@@ -47,7 +48,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       final result = await FilePicker.platform.pickFiles(
         allowMultiple: false,
         type: FileType.custom,
-        allowedExtensions: ['gguf'],
+        allowedExtensions: ['task', 'litertlm', 'bin', 'tflite'],
       );
 
       if (result == null) return;
@@ -69,7 +70,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Future<void> _loadModel() async {
     if (_modelPath.isEmpty) {
-      _showMessage('Please select a GGUF model first.');
+      _showMessage('Please select a supported model file first.');
       return;
     }
 
@@ -170,6 +171,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _showMessage('Chat history cleared.');
   }
 
+  Future<void> _changeTheme(String mode) async {
+    await StorageService.instance.saveThemeMode(mode);
+
+    switch (mode) {
+      case 'dark':
+        themeModeNotifier.value = ThemeMode.dark;
+        break;
+      case 'system':
+        themeModeNotifier.value = ThemeMode.system;
+        break;
+      case 'light':
+      default:
+        themeModeNotifier.value = ThemeMode.light;
+    }
+
+    if (!mounted) return;
+    setState(() {});
+  }
+
   void _showMessage(String text) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text(text)),
@@ -184,7 +204,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Gemma Model',
+              'Local Model',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 14),
@@ -203,11 +223,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
               _modelPath.isEmpty ? 'No model selected' : _modelPath,
               style: const TextStyle(fontSize: 13),
             ),
+            const SizedBox(height: 8),
+            const Text(
+              'Supported formats: .task, .litertlm, .bin, .tflite',
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
             const SizedBox(height: 16),
             ElevatedButton.icon(
               onPressed: _pickModel,
               icon: const Icon(Icons.folder_open),
-              label: const Text('Select GGUF Model'),
+              label: const Text('Select Model File'),
             ),
             const SizedBox(height: 10),
             ElevatedButton.icon(
@@ -227,13 +252,55 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  Widget _buildThemeSection() {
+    final current = themeModeNotifier.value;
+
+    String value = 'light';
+    if (current == ThemeMode.dark) value = 'dark';
+    if (current == ThemeMode.system) value = 'system';
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Appearance',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            RadioListTile<String>(
+              value: 'light',
+              groupValue: value,
+              title: const Text('Light mode'),
+              onChanged: (v) => _changeTheme(v!),
+            ),
+            RadioListTile<String>(
+              value: 'dark',
+              groupValue: value,
+              title: const Text('Dark mode'),
+              onChanged: (v) => _changeTheme(v!),
+            ),
+            RadioListTile<String>(
+              value: 'system',
+              groupValue: value,
+              title: const Text('Use system theme'),
+              onChanged: (v) => _changeTheme(v!),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildVoiceSection() {
     return Card(
       child: Column(
         children: [
           SwitchListTile(
             title: const Text('Auto Speak Responses'),
-            subtitle: const Text('Enable text-to-speech for Gemma replies'),
+            subtitle: const Text('Enable text-to-speech for replies'),
             value: _autoTts,
             onChanged: _toggleTts,
           ),
@@ -252,38 +319,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   Widget _buildHistorySection() {
     return Card(
-      child: Column(
-        children: [
-          ListTile(
-            leading: const Icon(Icons.delete_outline),
-            title: const Text('Clear Chat History'),
-            subtitle: const Text('Removes saved local conversation history'),
-            onTap: _clearChatHistory,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildRoadmapSection() {
-    return const Card(
-      child: Padding(
-        padding: EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Planned Roadmap',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-            ),
-            SizedBox(height: 10),
-            Text('V2.0 - Memory System'),
-            Text('V3.0 - JSON Knowledge Base'),
-            Text('V4.0 - BM25 Retrieval'),
-            Text('V5.0 - Document Upload'),
-            Text('V6.0 - LoRA Support, Agent Tools, Vision'),
-          ],
-        ),
+      child: ListTile(
+        leading: const Icon(Icons.delete_outline),
+        title: const Text('Clear Chat History'),
+        subtitle: const Text('Remove saved local messages'),
+        onTap: _clearChatHistory,
       ),
     );
   }
@@ -299,11 +339,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
         children: [
           _buildModelSection(),
           const SizedBox(height: 16),
+          _buildThemeSection(),
+          const SizedBox(height: 16),
           _buildVoiceSection(),
           const SizedBox(height: 16),
           _buildHistorySection(),
-          const SizedBox(height: 16),
-          _buildRoadmapSection(),
         ],
       ),
     );
