@@ -1,6 +1,13 @@
 import 'package:flutter/material.dart';
-import '../services/speech_service.dart';
+
+import '../models/chat_message.dart';
 import '../services/gemma_service.dart';
+import '../services/speech_service.dart';
+import '../services/storage_service.dart';
+import '../services/tts_service.dart';
+import '../widgets/chat_input.dart';
+import '../widgets/message_bubble.dart';
+
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
 
@@ -9,258 +16,230 @@ class ChatScreen extends StatefulWidget {
 }
 
 class _ChatScreenState extends State<ChatScreen> {
-  final TextEditingController _messageController =
-      TextEditingController();
+  final TextEditingController _messageController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
 
-  final ScrollController _scrollController =
-      ScrollController();
-
-  final List<Map<String, dynamic>> _messages = [];
+  final List<ChatMessage> _messages = [];
 
   bool _isGenerating = false;
-
   bool _isListening = false;
-
   bool _ttsEnabled = true;
-
   bool _modelLoaded = false;
 
-  String _currentModel = "No model loaded";
+  String _currentModel = 'No model loaded';
+  String? _speechLocaleId;
 
   @override
   void initState() {
     super.initState();
-
     _loadInitialData();
   }
 
   Future<void> _loadInitialData() async {
-  setState(() {
-    _modelLoaded =
-        GemmaService.instance.isModelLoaded;
+    final storedMessages = await StorageService.instance.loadMessages();
+    final ttsEnabled = await StorageService.instance.loadTtsEnabled();
+    final savedModelPath = await StorageService.instance.loadSelectedModelPath();
+    final savedLocale = await StorageService.instance.loadSpeechLocale();
 
-    _currentModel =
-        GemmaService.instance.currentModelPath;
-  });
-}
+    await TtsService.instance.initialize();
+    await SpeechService.instance.initialize();
+
+    if (!mounted) return;
+
+    setState(() {
+      _messages
+        ..clear()
+        ..addAll(storedMessages);
+      _ttsEnabled = ttsEnabled;
+      _speechLocaleId = savedLocale;
+      _modelLoaded = GemmaService.instance.isModelLoaded;
+      _currentModel = GemmaService.instance.currentModelPath.isNotEmpty
+          ? GemmaService.instance.currentModelPath
+          : savedModelPath.isNotEmpty
+              ? savedModelPath
+              : 'No model loaded';
+    });
+
+    _scrollToBottom(jump: true);
+  }
+
+  Future<void> _persistMessages() async {
+    await StorageService.instance.saveMessages(_messages);
+  }
 
   Future<void> _sendMessage() async {
     final prompt = _messageController.text.trim();
+    if (prompt.isEmpty || _isGenerating) return;
 
-    if (prompt.isEmpty) {
+    final userMessage = ChatMessage(
+      id: DateTime.now().microsecondsSinceEpoch.toString(),
+      role: MessageRole.user,
+      text: prompt,
+      timestamp: DateTime.now(),
+    );
+
+    setState(() {
+      _messages.add(userMessage);
+      _isGenerating = true;
+    });
+
+    _messageController.clear();
+    await _persistMessages();
+    _scrollToBottom();
+
+    try {
+      final response = await GemmaService.instance.generateResponse(prompt);
+
+      final assistantMessage = ChatMessage(
+        id: DateTime.now().microsecondsSinceEpoch.toString(),
+        role: MessageRole.assistant,
+        text: response,
+        timestamp: DateTime.now(),
+        isError: response.startsWith('Error:'),
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _messages.add(assistantMessage);
+      });
+
+      await _persistMessages();
+
+      if (_ttsEnabled && !assistantMessage.isError) {
+        await TtsService.instance.speak(assistantMessage.text);
+      }
+    } catch (e) {
+      final errorMessage = ChatMessage(
+        id: DateTime.now().microsecondsSinceEpoch.toString(),
+        role: MessageRole.assistant,
+        text: 'Error generating response: $e',
+        timestamp: DateTime.now(),
+        isError: true,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        _messages.add(errorMessage);
+      });
+
+      await _persistMessages();
+    } finally {
+      if (!mounted) return;
+
+      setState(() {
+        _isGenerating = false;
+        _modelLoaded = GemmaService.instance.isModelLoaded;
+        _currentModel = GemmaService.instance.currentModelPath.isNotEmpty
+            ? GemmaService.instance.currentModelPath
+            : _currentModel;
+      });
+
+      _scrollToBottom();
+    }
+  }
+
+  Future<void> _toggleListening() async {
+    if (_isListening) {
+      await SpeechService.instance.stopListening();
+      if (!mounted) return;
+      setState(() {
+        _isListening = false;
+      });
+      return;
+    }
+
+    final started = await SpeechService.instance.startListening(
+      localeId: _speechLocaleId,
+      onResult: (text) {
+        if (!mounted) return;
+        setState(() {
+          _messageController.text = text;
+          _messageController.selection = TextSelection.fromPosition(
+            TextPosition(offset: _messageController.text.length),
+          );
+        });
+      },
+    );
+
+    if (!mounted) return;
+
+    if (!started) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Speech recognition is not available on this device.'),
+        ),
+      );
       return;
     }
 
     setState(() {
-      _messages.add({
-        "role": "user",
-        "message": prompt,
-      });
+      _isListening = true;
     });
+  }
 
-    _messageController.clear();
-
-    _scrollToBottom();
-
+  Future<void> _toggleTts() async {
+    final next = !_ttsEnabled;
     setState(() {
-      _isGenerating = true;
+      _ttsEnabled = next;
     });
 
-    try {
-      //--------------------------------------------------
-      // Replace this section with Gemma inference later
-      //--------------------------------------------------
+    await StorageService.instance.saveTtsEnabled(next);
 
-      
-      String response =
-    await GemmaService.instance
-        .generateResponse(prompt);
-      //--------------------------------------------------
-
-      setState(() {
-        _messages.add({
-          "role": "assistant",
-          "message": response,
-        });
-      });
-
-      if (_ttsEnabled) {
-  await _speak(response);
-}
-    } catch (e) {
-      setState(() {
-        _messages.add({
-          "role": "assistant",
-          "message":
-              "Error generating response.",
-        });
-      });
+    if (!next) {
+      await TtsService.instance.stop();
     }
+  }
 
-    setState(() {
-      _isGenerating = false;
+  Future<void> _openSettings() async {
+    await Navigator.pushNamed(context, '/settings');
+    await _loadInitialData();
+  }
+
+  void _scrollToBottom({bool jump = false}) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scrollController.hasClients) return;
+
+      final position = _scrollController.position.maxScrollExtent;
+      if (jump) {
+        _scrollController.jumpTo(position);
+      } else {
+        _scrollController.animateTo(
+          position,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOut,
+        );
+      }
     });
-
-    _scrollToBottom();
   }
 
-  Future<void> _startListening() async {
-  setState(() {
-    _isListening = true;
-  });
-
-  await SpeechService.instance.startListening(
-    onResult: (text) {
-      setState(() {
-        _messageController.text = text;
-      });
-    },
-  );
-}
-
-Future<void> _stopListening() async {
-  await SpeechService.instance.stopListening();
-
-  setState(() {
-    _isListening = false;
-  });
-}
-
-Future<void> _speak(String text) async {
-  //----------------------------------------
-  // TTS code will go here later
-  //----------------------------------------
-}
-
-  void _scrollToBottom() {
-    WidgetsBinding.instance.addPostFrameCallback(
-      (_) {
-        if (_scrollController.hasClients) {
-          _scrollController.animateTo(
-            _scrollController.position.maxScrollExtent,
-            duration:
-                const Duration(milliseconds: 300),
-            curve: Curves.easeOut,
-          );
-        }
-      },
-    );
+  @override
+  void dispose() {
+    _messageController.dispose();
+    _scrollController.dispose();
+    SpeechService.instance.dispose();
+    TtsService.instance.dispose();
+    super.dispose();
   }
 
-  Widget _buildMessage(
-    Map<String, dynamic> message,
-  ) {
-    final bool isUser =
-        message["role"] == "user";
-
-    return Align(
-      alignment: isUser
-          ? Alignment.centerRight
-          : Alignment.centerLeft,
-      child: Container(
-        margin: const EdgeInsets.symmetric(
-          horizontal: 12,
-          vertical: 6,
-        ),
-        padding: const EdgeInsets.all(12),
-        constraints: BoxConstraints(
-          maxWidth:
-              MediaQuery.of(context).size.width *
-                  0.75,
-        ),
-        decoration: BoxDecoration(
-          color: isUser
-              ? Colors.blue
-              : Colors.grey.shade800,
-          borderRadius:
-              BorderRadius.circular(16),
-        ),
-        child: Text(
-          message["message"],
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 15,
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildInputArea() {
-  return SafeArea(
-    child: Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: 12,
-        vertical: 8,
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: _messageController,
-              textCapitalization:
-                  TextCapitalization.sentences,
-              minLines: 1,
-              maxLines: 5,
-              decoration: InputDecoration(
-                hintText: "Message Gemma...",
-                border: OutlineInputBorder(
-                  borderRadius:
-                      BorderRadius.circular(25),
-                ),
-              ),
-            ),
-          ),
-
-          const SizedBox(width: 8),
-
-          IconButton(
-            onPressed: () async {
-              if (_isListening) {
-                await _stopListening();
-              } else {
-                await _startListening();
-              }
-            },
-            icon: Icon(
-              _isListening
-                  ? Icons.mic
-                  : Icons.mic_none,
-            ),
-          ),
-
-          IconButton(
-            onPressed:
-                _isGenerating ? null : _sendMessage,
-            icon: const Icon(Icons.send),
-          ),
-        ],
-      ),
-    ),
-  );
-}
   Widget _buildModelStatus() {
     return Container(
-      padding: const EdgeInsets.all(10),
-      color: Colors.black12,
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
       child: Row(
         children: [
           Icon(
-            _modelLoaded
-                ? Icons.check_circle
-                : Icons.error_outline,
-            color: _modelLoaded
-                ? Colors.green
-                : Colors.orange,
+            _modelLoaded ? Icons.check_circle : Icons.error_outline,
+            color: _modelLoaded ? Colors.green : Colors.orange,
           ),
-
           const SizedBox(width: 10),
-
           Expanded(
             child: Text(
               _currentModel,
-              overflow:
-                  TextOverflow.ellipsis,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 13),
             ),
           ),
         ],
@@ -270,85 +249,93 @@ Future<void> _speak(String text) async {
 
   Widget _buildTypingIndicator() {
     return const Padding(
-      padding: EdgeInsets.all(12),
+      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(
         children: [
           SizedBox(
             width: 18,
             height: 18,
-            child:
-                CircularProgressIndicator(
-              strokeWidth: 2,
-            ),
+            child: CircularProgressIndicator(strokeWidth: 2),
           ),
           SizedBox(width: 12),
-          Text("Gemma is thinking..."),
+          Text('Gemma is thinking...'),
         ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.smart_toy_outlined,
+              size: 64,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Start chatting with Gemma',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Load a GGUF model from Settings, then type or speak your message.',
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final itemCount = _messages.length + (_isGenerating ? 1 : 0);
+
     return Scaffold(
       appBar: AppBar(
-        title:
-            const Text("Gemma Voice AI"),
+        title: const Text('Gemma Voice AI'),
         actions: [
           IconButton(
-            icon: Icon(
-              _ttsEnabled
-                  ? Icons.volume_up
-                  : Icons.volume_off,
-            ),
-            onPressed: () {
-              setState(() {
-                _ttsEnabled =
-                    !_ttsEnabled;
-              });
-            },
+            onPressed: _toggleTts,
+            icon: Icon(_ttsEnabled ? Icons.volume_up : Icons.volume_off),
           ),
           IconButton(
-            icon:
-                const Icon(Icons.settings),
-            onPressed: () {
-              Navigator.pushNamed(
-                context,
-                "/settings",
-              );
-            },
+            onPressed: _openSettings,
+            icon: const Icon(Icons.settings),
           ),
         ],
       ),
       body: Column(
         children: [
           _buildModelStatus(),
-
           Expanded(
-            child: ListView.builder(
-              controller:
-                  _scrollController,
-              itemCount:
-                  _messages.length +
-                      (_isGenerating
-                          ? 1
-                          : 0),
-              itemBuilder:
-                  (context, index) {
-                if (_isGenerating &&
-                    index ==
-                        _messages.length) {
-                  return _buildTypingIndicator();
-                }
+            child: _messages.isEmpty && !_isGenerating
+                ? _buildEmptyState()
+                : ListView.builder(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    itemCount: itemCount,
+                    itemBuilder: (context, index) {
+                      if (_isGenerating && index == _messages.length) {
+                        return _buildTypingIndicator();
+                      }
 
-                return _buildMessage(
-                  _messages[index],
-                );
-              },
-            ),
+                      return MessageBubble(message: _messages[index]);
+                    },
+                  ),
           ),
-
-          _buildInputArea(),
+          ChatInput(
+            controller: _messageController,
+            isListening: _isListening,
+            isGenerating: _isGenerating,
+            onSend: _sendMessage,
+            onMicTap: _toggleListening,
+          ),
         ],
       ),
     );
