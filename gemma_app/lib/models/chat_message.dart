@@ -40,20 +40,4 @@ class ChatMessage {
       isError: json['isError'] as bool? ?? false,
     );
   }
-
-  ChatMessage copyWith({
-    String? id,
-    MessageRole? role,
-    String? text,
-    DateTime? timestamp,
-    bool? isError,
-  }) {
-    return ChatMessage(
-      id: id ?? this.id,
-      role: role ?? this.role,
-      text: text ?? this.text,
-      timestamp: timestamp ?? this.timestamp,
-      isError: isError ?? this.isError,
-    );
-  }
 }
