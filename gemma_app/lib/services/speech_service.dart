@@ -76,10 +76,6 @@ class SpeechService {
     return _speech.systemLocale();
   }
 
-  Future<bool> hasPermission() async {
-    return initialize();
-  }
-
   void dispose() {
     _speech.cancel();
     _isListening = false;
