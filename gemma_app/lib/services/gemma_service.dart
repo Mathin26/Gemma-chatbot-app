@@ -1,80 +1,79 @@
 import 'package:flutter_gemma/flutter_gemma.dart';
-final gemma = FlutterGemma.gemma;
+
 class GemmaService {
   GemmaService._();
 
   static final GemmaService instance = GemmaService._();
 
+  final FlutterGemma _gemma = FlutterGemma.gemma;
   bool _initialized = false;
 
   Future<void> initialize() async {
     if (_initialized) return;
 
     try {
-      gemma.initialize();
+      _gemma.initialize();
       _initialized = true;
     } catch (e) {
-      throw Exception(
-        'Failed to initialize Gemma: $e',
-      );
+      throw Exception('Failed to initialize Gemma: $e');
     }
   }
 
   bool get isModelLoaded {
-    return gemma.isModelLoaded;
+    try {
+      return _gemma.isModelLoaded;
+    } catch (_) {
+      return false;
+    }
   }
 
   String get currentModelPath {
-    return gemma.currentModelPath;
+    try {
+      return _gemma.currentModelPath;
+    } catch (_) {
+      return '';
+    }
   }
 
   Future<bool> loadModel(String modelPath) async {
+    await initialize();
+
     try {
-      await initialize();
-
-      final success =
-          await gemma.loadModel(modelPath);
-
-      return success;
+      final loaded = await _gemma.loadModel(modelPath);
+      return loaded;
     } catch (e) {
-      throw Exception(
-        'Failed to load model: $e',
-      );
+      throw Exception('Failed to load model: $e');
     }
   }
 
   Future<void> unloadModel() async {
     try {
-      await gemma.unloadModel();
+      await _gemma.unloadModel();
     } catch (e) {
-      throw Exception(
-        'Failed to unload model: $e',
-      );
+      throw Exception('Failed to unload model: $e');
     }
   }
 
-  Future<String> generateResponse(
-    String prompt,
-  ) async {
+  Future<String> generateResponse(String prompt) async {
     try {
-      if (!gemma.isModelLoaded) {
-        return "No model loaded. Please load a Gemma model first.";
+      if (!isModelLoaded) {
+        return 'No model loaded. Please load a GGUF Gemma model from Settings.';
       }
 
-      final response =
-          await gemma.generateResponse(
-        prompt,
-      );
+      final response = await _gemma.generateResponse(prompt);
+      if (response.trim().isEmpty) {
+        return 'I could not generate a response for that input.';
+      }
 
-      return response;
+      return response.trim();
     } catch (e) {
-      return "Error: $e";
+      return 'Error: $e';
     }
   }
 
   Future<void> dispose() async {
     try {
-      gemma.dispose();
+      _gemma.dispose();
       _initialized = false;
     } catch (_) {}
   }
