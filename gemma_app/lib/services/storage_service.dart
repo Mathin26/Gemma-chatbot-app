@@ -13,6 +13,7 @@ class StorageService {
   static const String _ttsEnabledKey = 'tts_enabled';
   static const String _selectedModelPathKey = 'selected_model_path';
   static const String _speechLocaleKey = 'speech_locale';
+  static const String _themeModeKey = 'theme_mode';
 
   Future<void> saveMessages(List<ChatMessage> messages) async {
     final prefs = await SharedPreferences.getInstance();
@@ -71,15 +72,14 @@ class StorageService {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(_speechLocaleKey);
   }
-  static const String _themeModeKey = 'theme_mode';
 
-Future<void> saveThemeMode(String mode) async {
-  final prefs = await SharedPreferences.getInstance();
-  await prefs.setString(_themeModeKey, mode);
-}
+  Future<void> saveThemeMode(String mode) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_themeModeKey, mode);
+  }
 
-Future<String> loadThemeMode() async {
-  final prefs = await SharedPreferences.getInstance();
-  return prefs.getString(_themeModeKey) ?? 'light';
-}
+  Future<String> loadThemeMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_themeModeKey) ?? 'light';
+  }
 }
