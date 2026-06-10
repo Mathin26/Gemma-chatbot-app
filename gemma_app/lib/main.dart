@@ -2,42 +2,30 @@ import 'package:flutter/material.dart';
 
 import 'screens/chat_screen.dart';
 import 'screens/settings_screen.dart';
-import 'services/gemma_service.dart';
 
-Future<void> main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
-
-  try {
-    await GemmaService.instance.initialize();
-  } catch (e) {
-    debugPrint("Gemma initialization error: $e");
-  }
-
-  runApp(const MyApp());
+  runApp(const GemmaVoiceApp());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class GemmaVoiceApp extends StatelessWidget {
+  const GemmaVoiceApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Gemma Voice AI',
       debugShowCheckedModeBanner: false,
-
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.deepPurple,
-        ),
+        colorSchemeSeed: Colors.blue,
+        brightness: Brightness.dark,
         useMaterial3: true,
       ),
-
-      home: const ChatScreen(),
-
       routes: {
-        '/settings': (context) =>
-            const SettingsScreen(),
+        '/': (_) => const ChatScreen(),
+        '/settings': (_) => const SettingsScreen(),
       },
+      initialRoute: '/',
     );
   }
 }
