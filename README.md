@@ -144,4 +144,4 @@ For smaller mobile hardware, a compact Gemma-family model is the safer starting 
 
 ## License
 
-Add your preferred project license here.
+Apache-2.0 license
