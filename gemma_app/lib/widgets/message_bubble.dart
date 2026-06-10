@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-
 import '../models/chat_message.dart';
 
 class MessageBubble extends StatelessWidget {
@@ -13,66 +12,39 @@ class MessageBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isUser = message.isUser;
-    final colorScheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
 
-    final bubbleColor = message.isError
-        ? colorScheme.errorContainer
-        : isUser
-            ? colorScheme.primary
-            : colorScheme.surfaceContainerHighest;
+    final assistantBg =
+        isDark ? const Color(0xFF2A2A2A) : const Color(0xFFE8E8E8);
 
-    final textColor = message.isError
-        ? colorScheme.onErrorContainer
-        : isUser
-            ? colorScheme.onPrimary
-            : colorScheme.onSurface;
+    const userBg = Color(0xFF2F9BFF);
 
     return Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        padding: const EdgeInsets.all(14),
+        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.78,
+          maxWidth: isUser
+              ? MediaQuery.of(context).size.width * 0.55
+              : MediaQuery.of(context).size.width * 0.9,
         ),
         decoration: BoxDecoration(
-          color: bubbleColor,
+          color: isUser ? userBg : assistantBg,
           borderRadius: BorderRadius.circular(18),
         ),
-        child: Column(
-          crossAxisAlignment:
-              isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-          children: [
-            Text(
-              message.text,
-              style: TextStyle(
-                color: textColor,
-                fontSize: 15,
-                height: 1.4,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              _formatTime(message.timestamp),
-              style: TextStyle(
-                color: textColor.withValues(alpha: 0.72),
-                fontSize: 11,
-              ),
-            ),
-          ],
+        child: Text(
+          message.text,
+          style: TextStyle(
+            fontSize: 15.5,
+            height: 1.5,
+            color: isUser
+                ? Colors.white
+                : (isDark ? Colors.white : Colors.black87),
+          ),
         ),
       ),
     );
-  }
-
-  String _formatTime(DateTime dateTime) {
-    final hour = dateTime.hour > 12
-        ? dateTime.hour - 12
-        : dateTime.hour == 0
-            ? 12
-            : dateTime.hour;
-    final minute = dateTime.minute.toString().padLeft(2, '0');
-    final period = dateTime.hour >= 12 ? 'PM' : 'AM';
-    return '$hour:$minute $period';
   }
 }
