@@ -227,7 +227,9 @@ class _ChatScreenState extends State<ChatScreen> {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      color: Theme.of(context).brightness == Brightness.dark
+          ? Colors.black12
+          : const Color(0xFFF1EEEE),
       child: Row(
         children: [
           Icon(
@@ -247,46 +249,13 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
-  Widget _buildTypingIndicator() {
-    return const Padding(
-      padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 18,
-            height: 18,
-            child: CircularProgressIndicator(strokeWidth: 2),
-          ),
-          SizedBox(width: 12),
-          Text('Gemma is thinking...'),
-        ],
-      ),
-    );
-  }
-
   Widget _buildEmptyState() {
-    return Center(
+    return const Center(
       child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.smart_toy_outlined,
-              size: 64,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-            const SizedBox(height: 16),
-            const Text(
-              'Start chatting with Gemma',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 8),
-            const Text(
-              'Load a GGUF model from Settings, then type or speak your message.',
-              textAlign: TextAlign.center,
-            ),
-          ],
+        padding: EdgeInsets.all(24),
+        child: Text(
+          'Load a supported local model in Settings and start chatting.',
+          textAlign: TextAlign.center,
         ),
       ),
     );
@@ -294,11 +263,12 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final itemCount = _messages.length + (_isGenerating ? 1 : 0);
-
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Gemma Voice AI'),
+        title: const Text(
+          'Gemma Offline Chat',
+          style: TextStyle(fontSize: 20),
+        ),
         actions: [
           IconButton(
             onPressed: _toggleTts,
@@ -314,17 +284,13 @@ class _ChatScreenState extends State<ChatScreen> {
         children: [
           _buildModelStatus(),
           Expanded(
-            child: _messages.isEmpty && !_isGenerating
+            child: _messages.isEmpty
                 ? _buildEmptyState()
                 : ListView.builder(
                     controller: _scrollController,
                     padding: const EdgeInsets.symmetric(vertical: 8),
-                    itemCount: itemCount,
+                    itemCount: _messages.length,
                     itemBuilder: (context, index) {
-                      if (_isGenerating && index == _messages.length) {
-                        return _buildTypingIndicator();
-                      }
-
                       return MessageBubble(message: _messages[index]);
                     },
                   ),

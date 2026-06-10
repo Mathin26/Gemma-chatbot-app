@@ -18,51 +18,56 @@ class ChatInput extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return SafeArea(
       top: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(10, 10, 10, 14),
+        color: Theme.of(context).scaffoldBackgroundColor,
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
           children: [
+            IconButton(
+              onPressed: onMicTap,
+              icon: Icon(
+                isListening ? Icons.mic : Icons.mic_none,
+                color: isListening ? Colors.redAccent : null,
+              ),
+            ),
             Expanded(
               child: TextField(
                 controller: controller,
-                textCapitalization: TextCapitalization.sentences,
                 minLines: 1,
                 maxLines: 5,
+                textCapitalization: TextCapitalization.sentences,
                 textInputAction: TextInputAction.send,
                 onSubmitted: (_) {
                   if (!isGenerating) onSend();
                 },
                 decoration: InputDecoration(
-                  hintText: isListening
-                      ? 'Listening... speak now'
-                      : 'Message Gemma...',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(24),
+                  hintText: isListening ? 'Listening...' : 'Type a message',
+                  filled: false,
+                  enabledBorder: UnderlineInputBorder(
+                    borderSide: BorderSide(
+                      color: isDark ? Colors.white38 : Colors.black38,
+                    ),
                   ),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 14,
+                  focusedBorder: const UnderlineInputBorder(
+                    borderSide: BorderSide(color: Colors.blue),
                   ),
                 ),
               ),
             ),
-            const SizedBox(width: 8),
-            IconButton.filledTonal(
-              onPressed: onMicTap,
-              icon: Icon(isListening ? Icons.mic : Icons.mic_none),
-            ),
-            const SizedBox(width: 8),
-            IconButton.filled(
+            IconButton(
               onPressed: isGenerating ? null : onSend,
               icon: isGenerating
                   ? const SizedBox(
-                      height: 18,
-                      width: 18,
+                      width: 22,
+                      height: 22,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : const Icon(Icons.send),
+                  : const Icon(Icons.send, size: 30),
             ),
           ],
         ),
