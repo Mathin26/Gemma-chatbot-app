@@ -1,47 +1,50 @@
-import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/material.dart';
 
 import '../services/gemma_service.dart';
+import '../services/speech_service.dart';
+import '../services/storage_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
 
   @override
-  State<SettingsScreen> createState() =>
-      _SettingsScreenState();
+  State<SettingsScreen> createState() => _SettingsScreenState();
 }
 
-class _SettingsScreenState
-    extends State<SettingsScreen> {
-  String _modelPath = "";
-
+class _SettingsScreenState extends State<SettingsScreen> {
+  String _modelPath = '';
   bool _isLoading = false;
-
   bool _modelLoaded = false;
-
   bool _autoTts = true;
+  String? _selectedLocaleId;
 
   @override
   void initState() {
     super.initState();
-
-    _refreshModelInfo();
+    _loadSettings();
   }
 
-  void _refreshModelInfo() {
-    setState(() {
-      _modelLoaded =
-          GemmaService.instance.isModelLoaded;
+  Future<void> _loadSettings() async {
+    final savedModelPath = await StorageService.instance.loadSelectedModelPath();
+    final ttsEnabled = await StorageService.instance.loadTtsEnabled();
+    final localeId = await StorageService.instance.loadSpeechLocale();
 
-      _modelPath =
-          GemmaService.instance.currentModelPath;
+    if (!mounted) return;
+
+    setState(() {
+      _modelLoaded = GemmaService.instance.isModelLoaded;
+      _modelPath = GemmaService.instance.currentModelPath.isNotEmpty
+          ? GemmaService.instance.currentModelPath
+          : savedModelPath;
+      _autoTts = ttsEnabled;
+      _selectedLocaleId = localeId;
     });
   }
 
   Future<void> _pickModel() async {
     try {
-      final result =
-          await FilePicker.platform.pickFiles(
+      final result = await FilePicker.platform.pickFiles(
         allowMultiple: false,
         type: FileType.custom,
         allowedExtensions: ['gguf'],
@@ -49,26 +52,24 @@ class _SettingsScreenState
 
       if (result == null) return;
 
-      final path =
-          result.files.single.path;
+      final path = result.files.single.path;
+      if (path == null || path.isEmpty) return;
 
-      if (path == null) return;
+      await StorageService.instance.saveSelectedModelPath(path);
+
+      if (!mounted) return;
 
       setState(() {
         _modelPath = path;
       });
     } catch (e) {
-      _showMessage(
-        "Error selecting file: $e",
-      );
+      _showMessage('Error selecting file: $e');
     }
   }
 
   Future<void> _loadModel() async {
     if (_modelPath.isEmpty) {
-      _showMessage(
-        "Please select a GGUF model first",
-      );
+      _showMessage('Please select a GGUF model first.');
       return;
     }
 
@@ -77,55 +78,101 @@ class _SettingsScreenState
     });
 
     try {
-      final success =
-          await GemmaService.instance
-              .loadModel(_modelPath);
+      final success = await GemmaService.instance.loadModel(_modelPath);
+
+      if (!mounted) return;
 
       if (success) {
-        _showMessage(
-          "Model loaded successfully",
-        );
+        _showMessage('Model loaded successfully.');
       } else {
-        _showMessage(
-          "Failed to load model",
-        );
+        _showMessage('Failed to load model.');
       }
 
-      _refreshModelInfo();
+      setState(() {
+        _modelLoaded = GemmaService.instance.isModelLoaded;
+        _modelPath = GemmaService.instance.currentModelPath.isNotEmpty
+            ? GemmaService.instance.currentModelPath
+            : _modelPath;
+      });
     } catch (e) {
-      _showMessage(
-        "Error: $e",
-      );
+      _showMessage('Error loading model: $e');
+    } finally {
+      if (!mounted) return;
+      setState(() {
+        _isLoading = false;
+      });
     }
-
-    setState(() {
-      _isLoading = false;
-    });
   }
 
   Future<void> _unloadModel() async {
     try {
-      await GemmaService.instance
-          .unloadModel();
+      await GemmaService.instance.unloadModel();
 
-      _refreshModelInfo();
+      if (!mounted) return;
 
-      _showMessage(
-        "Model unloaded",
-      );
+      setState(() {
+        _modelLoaded = false;
+      });
+
+      _showMessage('Model unloaded.');
     } catch (e) {
-      _showMessage(
-        "Error: $e",
-      );
+      _showMessage('Error unloading model: $e');
     }
   }
 
+  Future<void> _toggleTts(bool value) async {
+    await StorageService.instance.saveTtsEnabled(value);
+    if (!mounted) return;
+
+    setState(() {
+      _autoTts = value;
+    });
+  }
+
+  Future<void> _pickSpeechLocale() async {
+    final locales = await SpeechService.instance.getLocales();
+    if (!mounted) return;
+
+    await showModalBottomSheet<void>(
+      context: context,
+      builder: (context) {
+        return ListView.separated(
+          itemCount: locales.length,
+          separatorBuilder: (_, __) => const Divider(height: 1),
+          itemBuilder: (context, index) {
+            final locale = locales[index];
+            final isSelected = locale.localeId == _selectedLocaleId;
+
+            return ListTile(
+              title: Text(locale.name),
+              subtitle: Text(locale.localeId),
+              trailing: isSelected ? const Icon(Icons.check) : null,
+              onTap: () async {
+                await StorageService.instance.saveSpeechLocale(locale.localeId);
+                if (!mounted) return;
+
+                setState(() {
+                  _selectedLocaleId = locale.localeId;
+                });
+
+                Navigator.pop(context);
+              },
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _clearChatHistory() async {
+    await StorageService.instance.clearMessages();
+    if (!mounted) return;
+    _showMessage('Chat history cleared.');
+  }
+
   void _showMessage(String text) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(
-      SnackBar(
-        content: Text(text),
-      ),
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(text)),
     );
   }
 
@@ -134,75 +181,45 @@ class _SettingsScreenState
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
-          crossAxisAlignment:
-              CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              "Gemma Model",
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight:
-                    FontWeight.bold,
-              ),
+              'Gemma Model',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
-
-            const SizedBox(height: 16),
-
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Icon(
+                  _modelLoaded ? Icons.check_circle : Icons.error_outline,
+                  color: _modelLoaded ? Colors.green : Colors.orange,
+                ),
+                const SizedBox(width: 8),
+                Text(_modelLoaded ? 'Status: Loaded' : 'Status: Not Loaded'),
+              ],
+            ),
+            const SizedBox(height: 12),
             Text(
-              _modelLoaded
-                  ? "Status: Loaded"
-                  : "Status: Not Loaded",
+              _modelPath.isEmpty ? 'No model selected' : _modelPath,
+              style: const TextStyle(fontSize: 13),
             ),
-
-            const SizedBox(height: 10),
-
-            Text(
-              _modelPath.isEmpty
-                  ? "No model selected"
-                  : _modelPath,
-            ),
-
             const SizedBox(height: 16),
-
             ElevatedButton.icon(
               onPressed: _pickModel,
-              icon: const Icon(
-                Icons.folder_open,
-              ),
-              label: const Text(
-                "Select GGUF Model",
-              ),
+              icon: const Icon(Icons.folder_open),
+              label: const Text('Select GGUF Model'),
             ),
-
             const SizedBox(height: 10),
-
             ElevatedButton.icon(
-              onPressed: _isLoading
-                  ? null
-                  : _loadModel,
-              icon: const Icon(
-                Icons.play_arrow,
-              ),
-              label: Text(
-                _isLoading
-                    ? "Loading..."
-                    : "Load Model",
-              ),
+              onPressed: _isLoading ? null : _loadModel,
+              icon: const Icon(Icons.play_arrow),
+              label: Text(_isLoading ? 'Loading...' : 'Load Model'),
             ),
-
             const SizedBox(height: 10),
-
-            ElevatedButton.icon(
-              onPressed:
-                  _modelLoaded
-                      ? _unloadModel
-                      : null,
-              icon: const Icon(
-                Icons.stop,
-              ),
-              label: const Text(
-                "Unload Model",
-              ),
+            OutlinedButton.icon(
+              onPressed: _modelLoaded ? _unloadModel : null,
+              icon: const Icon(Icons.stop),
+              label: const Text('Unload Model'),
             ),
           ],
         ),
@@ -210,55 +227,61 @@ class _SettingsScreenState
     );
   }
 
-  Widget _buildTtsSection() {
+  Widget _buildVoiceSection() {
     return Card(
-      child: SwitchListTile(
-        title: const Text(
-          "Auto Speak Responses",
-        ),
-        subtitle: const Text(
-          "Enable text-to-speech",
-        ),
-        value: _autoTts,
-        onChanged: (value) {
-          setState(() {
-            _autoTts = value;
-          });
-        },
+      child: Column(
+        children: [
+          SwitchListTile(
+            title: const Text('Auto Speak Responses'),
+            subtitle: const Text('Enable text-to-speech for Gemma replies'),
+            value: _autoTts,
+            onChanged: _toggleTts,
+          ),
+          const Divider(height: 1),
+          ListTile(
+            leading: const Icon(Icons.language),
+            title: const Text('Speech Recognition Locale'),
+            subtitle: Text(_selectedLocaleId ?? 'Use device default'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: _pickSpeechLocale,
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildFutureFeatures() {
+  Widget _buildHistorySection() {
     return Card(
+      child: Column(
+        children: [
+          ListTile(
+            leading: const Icon(Icons.delete_outline),
+            title: const Text('Clear Chat History'),
+            subtitle: const Text('Removes saved local conversation history'),
+            onTap: _clearChatHistory,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRoadmapSection() {
+    return const Card(
       child: Padding(
-        padding:
-            const EdgeInsets.all(16),
+        padding: EdgeInsets.all(16),
         child: Column(
-          crossAxisAlignment:
-              CrossAxisAlignment.start,
-          children: const [
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
             Text(
-              "Future Features",
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight:
-                    FontWeight.bold,
-              ),
+              'Planned Roadmap',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             SizedBox(height: 10),
-            Text(
-              "• Memory System (v2.0)",
-            ),
-            Text(
-              "• JSON Knowledge Base (v3.0)",
-            ),
-            Text(
-              "• BM25 Retrieval (v4.0)",
-            ),
-            Text(
-              "• LoRA Support (v5.0)",
-            ),
+            Text('V2.0 - Memory System'),
+            Text('V3.0 - JSON Knowledge Base'),
+            Text('V4.0 - BM25 Retrieval'),
+            Text('V5.0 - Document Upload'),
+            Text('V6.0 - LoRA Support, Agent Tools, Vision'),
           ],
         ),
       ),
@@ -269,23 +292,18 @@ class _SettingsScreenState
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          "Settings",
-        ),
+        title: const Text('Settings'),
       ),
       body: ListView(
-        padding:
-            const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(16),
         children: [
           _buildModelSection(),
-
           const SizedBox(height: 16),
-
-          _buildTtsSection(),
-
+          _buildVoiceSection(),
           const SizedBox(height: 16),
-
-          _buildFutureFeatures(),
+          _buildHistorySection(),
+          const SizedBox(height: 16),
+          _buildRoadmapSection(),
         ],
       ),
     );
