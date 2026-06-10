@@ -8,55 +8,38 @@ class GemmaService {
   InferenceModel? _model;
   dynamic _chat;
   String _currentModelPath = '';
-  bool _initialized = false;
 
   bool get isModelLoaded => _model != null;
   String get currentModelPath => _currentModelPath;
 
-  Future<void> initialize() async {
-    if (_initialized) return;
-
-    await FlutterGemma.initialize();
-    _initialized = true;
-  }
-
   Future<bool> loadModel(String modelPath) async {
-    await initialize();
-
     try {
+      final lowered = modelPath.toLowerCase();
+
+      final modelType = ModelType.gemmaIt;
+
       await FlutterGemma.installModel(
-        modelType: ModelType.gemmaIt,
+        modelType: modelType,
       ).fromFile(modelPath).install();
+
+      final preferredBackend = lowered.endsWith('.litertlm')
+          ? PreferredBackend.gpu
+          : PreferredBackend.cpu;
 
       _model = await FlutterGemma.getActiveModel(
         maxTokens: 1024,
-        preferredBackend: PreferredBackend.gpu,
+        preferredBackend: preferredBackend,
       );
 
       _chat = await _model!.createChat(
         systemInstruction:
-            'You are a helpful local mobile assistant. Respond clearly and naturally.',
+            'You are a helpful offline mobile assistant. Respond clearly and naturally.',
       );
 
       _currentModelPath = modelPath;
       return true;
-    } catch (_) {
-      try {
-        _model = await FlutterGemma.getActiveModel(
-          maxTokens: 1024,
-          preferredBackend: PreferredBackend.cpu,
-        );
-
-        _chat = await _model!.createChat(
-          systemInstruction:
-              'You are a helpful local mobile assistant. Respond clearly and naturally.',
-        );
-
-        _currentModelPath = modelPath;
-        return true;
-      } catch (e) {
-        throw Exception('Failed to load model: $e');
-      }
+    } catch (e) {
+      throw Exception('Failed to load model: $e');
     }
   }
 
@@ -72,7 +55,7 @@ class GemmaService {
 
   Future<String> generateResponse(String prompt) async {
     if (_model == null || _chat == null) {
-      return 'No model loaded. Please load a Gemma model from Settings.';
+      return 'No model loaded. Please select and load a supported model file in Settings.';
     }
 
     try {
@@ -98,14 +81,10 @@ class GemmaService {
   Future<void> resetChat() async {
     if (_model == null) return;
 
-    try {
-      _chat = await _model!.createChat(
-        systemInstruction:
-            'You are a helpful local mobile assistant. Respond clearly and naturally.',
-      );
-    } catch (e) {
-      throw Exception('Failed to reset chat: $e');
-    }
+    _chat = await _model!.createChat(
+      systemInstruction:
+          'You are a helpful offline mobile assistant. Respond clearly and naturally.',
+    );
   }
 
   Future<void> dispose() async {
