@@ -13,6 +13,11 @@ A Flutter mobile app for running a local Gemma-powered chatbot with speech input
 - Settings screen with theme selection
 - Light mode by default, with optional dark mode
 
+### Version 1.1
+-Save message history in a structured way instead of only raw chat history.
+-Store a lightweight memory profile, such as user preferences, recurring topics, and short summaries.
+-Load relevant memory into the next prompt so the assistant feels continuous across sessions.
+
 ## Project structure
 
 ```text
