@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../main.dart';
 import '../services/gemma_service.dart';
+import '../services/memory_service.dart';
 import '../services/speech_service.dart';
 import '../services/storage_service.dart';
 
@@ -30,6 +31,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
     final savedModelPath = await StorageService.instance.loadSelectedModelPath();
     final ttsEnabled = await StorageService.instance.loadTtsEnabled();
     final localeId = await StorageService.instance.loadSpeechLocale();
+    await MemoryService.instance.initialize();
 
     if (!mounted) return;
 
@@ -59,7 +61,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       await StorageService.instance.saveSelectedModelPath(path);
 
       if (!mounted) return;
-
       setState(() {
         _modelPath = path;
       });
@@ -83,11 +84,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
       if (!mounted) return;
 
-      if (success) {
-        _showMessage('Model loaded successfully.');
-      } else {
-        _showMessage('Failed to load model.');
-      }
+      _showMessage(success ? 'Model loaded successfully.' : 'Failed to load model.');
 
       setState(() {
         _modelLoaded = GemmaService.instance.isModelLoaded;
@@ -108,13 +105,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _unloadModel() async {
     try {
       await GemmaService.instance.unloadModel();
-
       if (!mounted) return;
-
       setState(() {
         _modelLoaded = false;
       });
-
       _showMessage('Model unloaded.');
     } catch (e) {
       _showMessage('Error unloading model: $e');
@@ -124,7 +118,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Future<void> _toggleTts(bool value) async {
     await StorageService.instance.saveTtsEnabled(value);
     if (!mounted) return;
-
     setState(() {
       _autoTts = value;
     });
@@ -137,25 +130,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
     await showModalBottomSheet<void>(
       context: context,
       builder: (context) {
-        return ListView.separated(
+        return ListView.builder(
           itemCount: locales.length,
-          separatorBuilder: (_, __) => const Divider(height: 1),
           itemBuilder: (context, index) {
             final locale = locales[index];
-            final isSelected = locale.localeId == _selectedLocaleId;
-
+            final selected = locale.localeId == _selectedLocaleId;
             return ListTile(
               title: Text(locale.name),
               subtitle: Text(locale.localeId),
-              trailing: isSelected ? const Icon(Icons.check) : null,
+              trailing: selected ? const Icon(Icons.check) : null,
               onTap: () async {
                 await StorageService.instance.saveSpeechLocale(locale.localeId);
                 if (!mounted) return;
-
                 setState(() {
                   _selectedLocaleId = locale.localeId;
                 });
-
                 Navigator.pop(context);
               },
             );
@@ -171,6 +160,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
     _showMessage('Chat history cleared.');
   }
 
+  Future<void> _clearMemory() async {
+    await MemoryService.instance.clearAll();
+    if (!mounted) return;
+    setState(() {});
+    _showMessage('Memory cleared.');
+  }
+
   Future<void> _changeTheme(String mode) async {
     await StorageService.instance.saveThemeMode(mode);
 
@@ -181,7 +177,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
       case 'system':
         themeModeNotifier.value = ThemeMode.system;
         break;
-      case 'light':
       default:
         themeModeNotifier.value = ThemeMode.light;
     }
@@ -252,9 +247,39 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  Widget _buildMemorySection() {
+    final count = MemoryService.instance.items.length;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Memory System',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            Text('Saved memory items: $count'),
+            const SizedBox(height: 10),
+            const Text(
+              'Version 2 stores lightweight user memory such as preferences, project context, and conversational notes.',
+            ),
+            const SizedBox(height: 14),
+            OutlinedButton.icon(
+              onPressed: _clearMemory,
+              icon: const Icon(Icons.delete_outline),
+              label: const Text('Clear Memory'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildThemeSection() {
     final current = themeModeNotifier.value;
-
     String value = 'light';
     if (current == ThemeMode.dark) value = 'dark';
     if (current == ThemeMode.system) value = 'system';
@@ -269,7 +294,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
               'Appearance',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 12),
             RadioListTile<String>(
               value: 'light',
               groupValue: value,
@@ -338,6 +362,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
         padding: const EdgeInsets.all(16),
         children: [
           _buildModelSection(),
+          const SizedBox(height: 16),
+          _buildMemorySection(),
           const SizedBox(height: 16),
           _buildThemeSection(),
           const SizedBox(height: 16),

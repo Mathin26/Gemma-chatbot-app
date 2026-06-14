@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models/chat_message.dart';
 import '../services/gemma_service.dart';
+import '../services/memory_service.dart';
 import '../services/speech_service.dart';
 import '../services/storage_service.dart';
 import '../services/tts_service.dart';
@@ -43,6 +44,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
     await TtsService.instance.initialize();
     await SpeechService.instance.initialize();
+    await MemoryService.instance.initialize();
 
     if (!mounted) return;
 
@@ -85,10 +87,16 @@ class _ChatScreenState extends State<ChatScreen> {
 
     _messageController.clear();
     await _persistMessages();
+    await MemoryService.instance.extractMemoryFromMessage(userMessage);
     _scrollToBottom();
 
     try {
-      final response = await GemmaService.instance.generateResponse(prompt);
+      final memoryContext = MemoryService.instance.buildMemoryContext(prompt);
+
+      final response = await GemmaService.instance.generateResponse(
+        prompt: prompt,
+        memoryContext: memoryContext,
+      );
 
       final assistantMessage = ChatMessage(
         id: DateTime.now().microsecondsSinceEpoch.toString(),
@@ -219,30 +227,41 @@ class _ChatScreenState extends State<ChatScreen> {
     _messageController.dispose();
     _scrollController.dispose();
     SpeechService.instance.dispose();
-    TtsService.instance.dispose();
     super.dispose();
   }
 
   Widget _buildModelStatus() {
+    final memoryCount = MemoryService.instance.items.length;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       color: Theme.of(context).brightness == Brightness.dark
           ? Colors.black12
           : const Color(0xFFF1EEEE),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(
-            _modelLoaded ? Icons.check_circle : Icons.error_outline,
-            color: _modelLoaded ? Colors.green : Colors.orange,
+          Row(
+            children: [
+              Icon(
+                _modelLoaded ? Icons.check_circle : Icons.error_outline,
+                color: _modelLoaded ? Colors.green : Colors.orange,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  _currentModel,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 13),
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              _currentModel,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontSize: 13),
-            ),
+          const SizedBox(height: 6),
+          Text(
+            'Memory items loaded: $memoryCount',
+            style: const TextStyle(fontSize: 12),
           ),
         ],
       ),
@@ -254,7 +273,7 @@ class _ChatScreenState extends State<ChatScreen> {
       child: Padding(
         padding: EdgeInsets.all(24),
         child: Text(
-          'Load a supported local model in Settings and start chatting.',
+          'Load a supported local model in Settings and start chatting.\nVersion 2 now includes memory loading.',
           textAlign: TextAlign.center,
         ),
       ),

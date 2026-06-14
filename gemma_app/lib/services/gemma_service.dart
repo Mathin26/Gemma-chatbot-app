@@ -14,26 +14,18 @@ class GemmaService {
 
   Future<bool> loadModel(String modelPath) async {
     try {
-      final lowered = modelPath.toLowerCase();
-
-      final modelType = ModelType.gemmaIt;
-
       await FlutterGemma.installModel(
-        modelType: modelType,
+        modelType: ModelType.gemmaIt,
       ).fromFile(modelPath).install();
-
-      final preferredBackend = lowered.endsWith('.litertlm')
-          ? PreferredBackend.gpu
-          : PreferredBackend.cpu;
 
       _model = await FlutterGemma.getActiveModel(
         maxTokens: 1024,
-        preferredBackend: preferredBackend,
+        preferredBackend: PreferredBackend.cpu,
       );
 
       _chat = await _model!.createChat(
         systemInstruction:
-            'You are a helpful offline mobile assistant. Respond clearly and naturally.',
+            'You are a helpful offline assistant. Use relevant memory when it is provided, but do not invent facts.',
       );
 
       _currentModelPath = modelPath;
@@ -47,32 +39,35 @@ class GemmaService {
     try {
       await _model?.close();
     } catch (_) {}
-
     _model = null;
     _chat = null;
     _currentModelPath = '';
   }
 
-  Future<String> generateResponse(String prompt) async {
+  Future<String> generateResponse({
+    required String prompt,
+    String memoryContext = '',
+  }) async {
     if (_model == null || _chat == null) {
-      return 'No model loaded. Please select and load a supported model file in Settings.';
+      return 'No model loaded. Please load a supported model in Settings.';
     }
 
     try {
+      final fullPrompt = memoryContext.isEmpty
+          ? prompt
+          : '$memoryContext\n\nCurrent user message:\n$prompt';
+
       await _chat.addQueryChunk(
         Message.text(
-          text: prompt,
+          text: fullPrompt,
           isUser: true,
         ),
       );
 
       final response = await _chat.generateChatResponse();
-
-      if (response == null || response.toString().trim().isEmpty) {
-        return 'I could not generate a response.';
-      }
-
-      return response.toString().trim();
+      return response?.toString().trim().isNotEmpty == true
+          ? response.toString().trim()
+          : 'I could not generate a response.';
     } catch (e) {
       return 'Error: $e';
     }
@@ -80,20 +75,9 @@ class GemmaService {
 
   Future<void> resetChat() async {
     if (_model == null) return;
-
     _chat = await _model!.createChat(
       systemInstruction:
-          'You are a helpful offline mobile assistant. Respond clearly and naturally.',
+          'You are a helpful offline assistant. Use relevant memory when it is provided, but do not invent facts.',
     );
-  }
-
-  Future<void> dispose() async {
-    try {
-      await _model?.close();
-    } catch (_) {}
-
-    _model = null;
-    _chat = null;
-    _currentModelPath = '';
   }
 }

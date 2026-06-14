@@ -3,33 +3,33 @@ import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/chat_message.dart';
+import '../models/memory_item.dart';
 
 class StorageService {
   StorageService._();
 
   static final StorageService instance = StorageService._();
 
-  static const String _chatHistoryKey = 'chat_history';
-  static const String _ttsEnabledKey = 'tts_enabled';
-  static const String _selectedModelPathKey = 'selected_model_path';
-  static const String _speechLocaleKey = 'speech_locale';
-  static const String _themeModeKey = 'theme_mode';
+  static const _chatHistoryKey = 'chat_history_v2';
+  static const _memoryKey = 'memory_items_v2';
+  static const _ttsEnabledKey = 'tts_enabled';
+  static const _selectedModelPathKey = 'selected_model_path';
+  static const _speechLocaleKey = 'speech_locale';
+  static const _themeModeKey = 'theme_mode';
 
   Future<void> saveMessages(List<ChatMessage> messages) async {
     final prefs = await SharedPreferences.getInstance();
-    final encoded = messages.map((m) => jsonEncode(m.toJson())).toList();
-    await prefs.setStringList(_chatHistoryKey, encoded);
+    final data = messages.map((e) => jsonEncode(e.toJson())).toList();
+    await prefs.setStringList(_chatHistoryKey, data);
   }
 
   Future<List<ChatMessage>> loadMessages() async {
     final prefs = await SharedPreferences.getInstance();
-    final stored = prefs.getStringList(_chatHistoryKey) ?? [];
-
-    return stored
-        .map((item) {
+    final data = prefs.getStringList(_chatHistoryKey) ?? [];
+    return data
+        .map((e) {
           try {
-            final map = jsonDecode(item) as Map<String, dynamic>;
-            return ChatMessage.fromJson(map);
+            return ChatMessage.fromJson(jsonDecode(e));
           } catch (_) {
             return null;
           }
@@ -41,6 +41,32 @@ class StorageService {
   Future<void> clearMessages() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_chatHistoryKey);
+  }
+
+  Future<void> saveMemories(List<MemoryItem> items) async {
+    final prefs = await SharedPreferences.getInstance();
+    final data = items.map((e) => jsonEncode(e.toJson())).toList();
+    await prefs.setStringList(_memoryKey, data);
+  }
+
+  Future<List<MemoryItem>> loadMemories() async {
+    final prefs = await SharedPreferences.getInstance();
+    final data = prefs.getStringList(_memoryKey) ?? [];
+    return data
+        .map((e) {
+          try {
+            return MemoryItem.fromJson(jsonDecode(e));
+          } catch (_) {
+            return null;
+          }
+        })
+        .whereType<MemoryItem>()
+        .toList();
+  }
+
+  Future<void> clearMemories() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_memoryKey);
   }
 
   Future<void> saveTtsEnabled(bool enabled) async {
@@ -63,9 +89,9 @@ class StorageService {
     return prefs.getString(_selectedModelPathKey) ?? '';
   }
 
-  Future<void> saveSpeechLocale(String localeId) async {
+  Future<void> saveSpeechLocale(String locale) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_speechLocaleKey, localeId);
+    await prefs.setString(_speechLocaleKey, locale);
   }
 
   Future<String?> loadSpeechLocale() async {

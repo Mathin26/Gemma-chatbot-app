@@ -10,11 +10,9 @@ class TtsService {
 
   Future<void> initialize() async {
     if (_initialized) return;
-
     await _tts.setSpeechRate(0.45);
     await _tts.setPitch(1.0);
     await _tts.setVolume(1.0);
-
     _initialized = true;
   }
 
@@ -27,10 +25,6 @@ class TtsService {
 
   Future<void> stop() async {
     await initialize();
-    await _tts.stop();
-  }
-
-  Future<void> dispose() async {
     await _tts.stop();
   }
 }

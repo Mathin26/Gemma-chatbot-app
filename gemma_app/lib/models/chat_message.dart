@@ -31,7 +31,7 @@ class ChatMessage {
     return ChatMessage(
       id: json['id'] as String,
       role: MessageRole.values.firstWhere(
-        (role) => role.name == json['role'],
+        (value) => value.name == json['role'],
         orElse: () => MessageRole.assistant,
       ),
       text: json['text'] as String,
